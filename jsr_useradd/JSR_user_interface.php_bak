@@ -1,0 +1,81 @@
+<?php
+
+$MDS_SERVER_IP = "172.16.160.78";
+$MDS_USER_INTERFACE = "http://" . $MDS_SERVER_IP . "/nusoap/IUser.php?wsdl";
+
+
+//function sock_post($url,$query){
+//}
+//
+
+function jsr_user_add ($username) {
+	$MDS_SERVER_IP = "172.16.160.78";
+	$client = new SoapClient("http://" . $MDS_SERVER_IP . "/nusoap/IUser.php?wsdl");
+	$password = substr(md5("qwer".$username."poiu"),-10);
+	$parameters = array('999999','999999',$username,'common',$username,1,$password,'{"Type":"SIP","Scheduler":0,"ShowMode":0,"AutoRec":0}');
+	$r = $client->__soapCall('CreateUser', $parameters);
+	print_r($password);
+	print_r($r);
+}
+
+function jsr_user_del ($username) {
+	$MDS_SERVER_IP = "172.16.160.78";
+	$client = new SoapClient("http://" . $MDS_SERVER_IP . "/nusoap/IUser.php?wsdl");
+	$parameters = array('999999','999999',$username);
+	$r = $client->__soapCall('DeleteUser', $parameters);
+	echo $r;
+}
+
+function jsr_user_update($username, $userpwd) {
+	$MDS_SERVER_IP = "172.16.160.78";
+	$client = new SoapClient("http://" . $MDS_SERVER_IP . "/nusoap/IUser.php?wsdl");
+	$password = substr(md5("qwer".$userpwd."OKMU"),-10);
+	//$password = "123456";
+	echo $password;
+	$parameters = array('999999','999999',$username,'common',$username,1,$password,'{"Type":"SIP","Scheduler":0,"ShowMode":0,"AutoRec":0}');
+	$r = $client->__soapCall('SetUserInfo', $parameters);
+	echo $r;
+}
+
+function jsr_user_add_test ($username) {
+	$MDS_SERVER_IP = "172.16.160.78";
+	$client = new SoapClient("http://" . $MDS_SERVER_IP . "/nusoap/IUser.php?wsdl");
+	$password = substr(md5("qwer".$username."poiu"),-10);
+	$parameters = array('999999','999999',$username,'test',"陈俊兴",1,'100306','{"Type":"SIP","Scheduler":0,"ShowMode":0,"AutoRec":0,"Audio":"1","Video":"1"}');
+	//$parameters = array('999999','999999',$username,'test',"陈俊兴",1,'100306','{"Type":"SIP","Scheduler":0,"ShowMode":0,"AutoRec":0}');
+	$r = $client->__soapCall('CreateUser', $parameters);
+	print_r($password);
+	print_r($r);
+}
+
+
+//jsr_user_del("100756");
+
+//jsr_user_del("200200");
+//jsr_user_add_test("200201");
+
+jsr_user_del("100071");
+//jsr_user_del("2014");
+//jsr_user_del("2015");
+//jsr_user_add_test("100800");
+//jsr_user_del("100367");
+//jsr_user_update("100393", "aqwfasdfasf");
+
+//jsr_user_del("100306");
+//jsr_user_add("100306");
+
+// Delete User
+//$client = new SoapClient("http://172.16.22.57/nusoap/IUser.php?wsdl");
+//$parameters = array('999999','999999','2029');
+//$r = $client->__soapCall('DeleteUser', $parameters);
+
+// Add User
+//    $client = new SoapClient("http://172.16.160.78/nusoap/IUser.php?wsdl");
+//    $parameters = array('999999','999999','2030','手机用户','2030',6,'2030','{"Type":"SIP","Scheduler":0,"ShowMode":0,"AutoRec":0}');
+//    //$parameters=array(' 999999',' password',’1000’,’管理组’,’张三’,’5’,’password’,’ {“Type”:”SIP”,
+//    //	”Scheduler”:0,“ShowMode”:0,“AutoRec”:0}’);
+//    $r = $client->__soapCall('CreateUser', $parameters);
+//    
+//    
+//    echo $r;
+?>
