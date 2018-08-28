@@ -7,14 +7,15 @@
 import os
 import paramiko
 import httplib
+import socket
 
 #待检测机器配置
 host={
     'master':{
         'p1':{
-            'host_ip':'172.16.160.174',
+            'host_ip':'p1',
             'user':'root',
-            'pwd':'!QAZ2wsx',
+            'pwd':'',
             'port':'22',
         },
     },
@@ -60,7 +61,7 @@ host={
     },
     'registry':{
         'p25':{
-            'host_ip':'172.16.161.211',
+            'host_ip':'p25',
             'user':'root',
             'pwd':'',
             'port':'22',
@@ -98,12 +99,18 @@ host={
             'port':'22',
         }
     },
+    'test':{
+        'host_ip':'172.16.161.2',
+        'user':'root',
+        'pwd':'!QAZ2wsx',
+        'port':'22',
+    }
 
 }
 
-
-
-
+mail_to_user=[
+    'team_cloud_service@syberos.com',
+]
 
 class SSH(object):
     '''
@@ -120,6 +127,9 @@ class SSH(object):
             # 密码连接服务器
             self.ssh.connect(hostname=host, port=port, username=user, password=pwd)
     def cmd_run(self,cmd):
+        '''
+            运行命令获取返回值
+        '''
         msg={
             'stdin':'',
             'stdout':'',
@@ -131,7 +141,55 @@ class SSH(object):
         msg['stderr'] = stderr
         return msg
     def ssh_close(self):
+        '''
+            关闭连接
+        '''
         self.ssh.close()
+
+
+def Send_mail(msg):
+    pass
+
+
+
+#公共项检测
+def check_port(host_ip,port):
+    '''
+        检测端口是否开放
+    '''
+    check_bit=False
+    sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sk.settimeout(10)
+    try:
+        sk.connect((host_ip,int(port)))    #连接21号端口，并作出判断
+        check_bit=True
+        print 'Server port 21 OK!'
+    except Exception:
+        print 'Server port 21 not connect!'
+    sk.close()
+
+def check_ping(host_ip):
+    '''
+        ping 主机测试
+    '''
+    # check_bit=False
+    # print 'ping -c 4 ' + host_ip +' | grep \'0 received\' | wc -l'
+    # remsg = os.system( 'ping -c 4 ' + host_ip +' | grep \'0 received\' | wc -l')
+    remsg = os.system('ping -c 4 ' + host_ip +' > /dev/null' )
+    # print remsg.readlines()
+    # print remsg
+    if remsg:
+        print 'ping bad'
+        pass
+    else:
+        check_bit=True
+        print 'ping ok'
+
+
+
+
+
+
 
 
 def check_master(host):
@@ -162,6 +220,7 @@ def check_mount(host):
     remsg1=ssh.cmd_run('df -hl | grep /dev/sda1 | grep docker | wc -l')
     remsg2=ssh.cmd_run('df -hl | grep /dev/sda2 | grep data | wc -l')
     remsg3=ssh.cmd_run('df -hl | grep /dev/sda3 | grep data | wc -l')
+    ssh.ssh_close()
     if int(remsg1['stdout'] ) == 1 and int(remsg2['stdout'] ) == 1 and int(remsg3['stdout'] ) == 1:
         check_bit = True
     else:
@@ -195,20 +254,85 @@ def check_registry(host):
     # print https_msg.readlines()
 
 def check_docker(host):
-    pass
+    '''
+        检测docker 服务状态
+    '''
+    check_bit=False
+    ssh=SSH(host=host['host_ip'],user=host['user'],port=host['port'],pwd=host['pwd'])
+    remsg=ssh.cmd_run('systemctl status docker | grep running | wc -l')
+    print remsg['stdout']
+    ssh.ssh_close()
+    if int(remsg['stdout'] ) == 1:
+        check_bit=True
+        print 'docker ok'
+    else:
+        print 'docker bad'
+
 def check_DNS(host):
-    pass
+    '''
+        检测DNS地址配置
+    '''
+    check_bit=False
+    ssh=SSH(host=host['host_ip'],user=host['user'],port=host['port'],pwd=host['pwd'])
+    remsg1=ssh.cmd_run("cat /etc/resolv.conf | grep 'search default.svc.syberyun.local svc.syberyun.local syberyun.local' | wc -l")
+    remsg2=ssh.cmd_run("cat /etc/resolv.conf | grep 'nameserver 172.16.160.39' | wc -l")
+    ssh.ssh_close()
+    if int(remsg1['stdout'] ) == 1 and int(remsg2['stdout'] ) == 1:
+        check_bit=True
+        print 'DNS ok'
+    else:
+        print 'DNS bad'
+
 def check_Etcd(host):
-    pass
+    '''
+        检测ETCD服务
+    '''
+    check_bit=False
+    ssh=SSH(host=host['host_ip'],user=host['user'],port=host['port'],pwd=host['pwd'])
+    remsg=ssh.cmd_run('systemctl status etcd | grep running | wc -l')
+    print remsg['stdout']
+    ssh.ssh_close()
+    if int(remsg['stdout'] ) == 1:
+        check_bit=True
+        print 'etcd ok'
+    else:
+        print 'etcd bad'
+
 def check_mysql(host):
-    pass
+    '''
+        检测mysql服务
+    '''
+    check_bit=False
+    ssh=SSH(host=host['host_ip'],user=host['user'],port=host['port'],pwd=host['pwd'])
+    remsg=ssh.cmd_run('systemctl status mysqld | grep running | wc -l')
+    print remsg['stdout']
+    ssh.ssh_close()
+    if int(remsg['stdout'] ) == 1:
+        check_bit=True
+        print 'mysql ok'
+    else:
+        print 'msyql bad'
+
+
 def check_webserver(host):
-    pass
+    check_port(hose['host_ip'],port=8090)
 def check_gitlab(host):
     pass
 def check_jenkins(host):
     pass
+
+
+# def check_all(host):
+    # if check_master(host=host['master']['p1']):
+    #     pass
+    # else:
+    #     print sandmail('bad')
+
 # check_master(host=host['master']['p1'])
 # check_mount()
 # check_registry(host=host['registry']['p25'])
-
+# check_docker(host['test'])
+# check_DNS(host['test'])
+# check_port(host_ip='172.16.160.107',port='80')
+# check_all(host=hose)
+check_ping(host_ip='172.16.160.107')
