@@ -44,19 +44,19 @@ host={
         'p22':{
             'host_ip':'p22',
             'user':'root',
-            'pwd':'',
+            'pwd':'111111',
             'port':'22',
         },
         'p23':{
             'host_ip':'p23',
             'user':'root',
-            'pwd':'',
+            'pwd':'111111',
             'port':'22',
         },
         'p24':{
             'host_ip':'p24',
             'user':'root',
-            'pwd':'',
+            'pwd':'111111',
             'port':'22',
         },
     },
@@ -100,13 +100,6 @@ host={
             'port':'22',
         }
     },
-    'test':{
-        'host_ip':'172.16.161.2',
-        'user':'root',
-        'pwd':'!QAZ2wsx',
-        'port':'22',
-    }
-
 }
 
 mail_to_user=[
@@ -116,22 +109,31 @@ mail_to_user=[
 #--------------------------------------------------------------------------------------
 #以下为全局变量，请勿修改
 global SEND_MAIB_BIT
-SEND_MAIB_BIT=False
+SEND_MAIB_BIT=True
 
 class SSH(object):
     '''
        封装SSH连接类，用于快速调用
     '''
     def __init__(self,host,user,port,pwd):
-        self.ssh = paramiko.SSHClient()
-        # 允许连接不在know_hosts文件中的主机
-        self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        if pwd == '':
-            #免密连接服务器
-            self.ssh.connect(hostname=host, port=port, username=user, pkey=private_key)
-        else:
-            # 密码连接服务器
-            self.ssh.connect(hostname=host, port=port, username=user, password=pwd)
+        self.Error_log=Error_Log()
+        try:
+            self.ssh = paramiko.SSHClient()
+            # 允许连接不在know_hosts文件中的主机
+            self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            if pwd == '':
+                #免密连接服务器
+                key=paramiko.RSAKey.from_private_key_file('/root/.ssh/id_rsa')
+                self.ssh.connect(hostname=host, port=port, username=user, pkey=key, timeout=10)
+            else:
+                # 密码连接服务器
+                self.ssh.connect(hostname=host, port=port, username=user, password=pwd, timeout=10)
+        except Exception,e:
+            global SEND_MAIB_BIT
+            SEND_MAIB_BIT = False
+            self.Error_log.error_save('ERROR:' + host + 'ssh 失败\n' )
+            print 'ssh 失败'
+
     def cmd_run(self,cmd):
         '''
             运行命令获取返回值
@@ -141,11 +143,20 @@ class SSH(object):
             'stdout':'',
             'stderr':'',
         }
-        stdin, stdout,stderr = self.ssh.exec_command(cmd)
-        msg['stdin'] =stdin
-        msg['stdout'] = stdout.read()
-        msg['stderr'] = stderr
+        try:
+            print '---------------------------------------'
+            stdin, stdout,stderr = self.ssh.exec_command(cmd,timeout=10)
+            msg['stdin'] =stdin
+            msg['stdout'] = stdout.read()
+            msg['stderr'] = stderr
+        except Exception,e:
+            msg['stdout'] =' '
+            global SEND_MAIB_BIT
+            SEND_MAIB_BIT = False
+            self.Error_log.error_save('ERROR:' + cmd + '运行 失败\n' )
+            print '命令运行失败'
         return msg
+
     def ssh_close(self):
         '''
             关闭连接
@@ -168,23 +179,26 @@ class Error_Log(object):
             os.system('rm -rf CheckErrorSave.file')
             os.system('echo `date` > CheckErrorSave.file')
         else:
-            os.system('echo `data` > CheckErrorSave.file')
+            os.system('echo `date` > CheckErrorSave.file')
     def error_save(self,msg):
         '''
             追加日志
         '''
+        print msg
         os.system('echo "' + msg + '" >> CheckErrorSave.file')
 
 #公共函数
-def Send_mail(msg):
+def Send_mail():
     '''
         发送邮件
     '''
     global SEND_MAIB_BIT
+    print SEND_MAIB_BIT
     if SEND_MAIB_BIT:
-        os.system('mail -s "云服务出错`date`" yanxinyue@syberos.com < ./CheckErrorSave.file')
+        print '没有发送邮件'
     else:
-        pass
+        print '发送邮件'
+        # os.system('mail -s "云服务出错`date`" yanxinyue@syberos.com < ./CheckErrorSave.file')
 
 def log_save():
     '''
@@ -205,10 +219,9 @@ def check_port(host_ip,port):
     try:
         sk.connect((host_ip,int(port)))    #连接21号端口，并作出判断
         check_bit=True
-        # print 'Server port 21 OK!'
-    except Exception:
-        pass
-        # print 'Server port 21 not connect!'
+        print 'Server port'+ str(port) +'OK!'
+    except Exception,e:
+        print 'Server port'+ str(port) + 'not connect!'
     sk.close()
 
     return check_bit
@@ -220,11 +233,11 @@ def check_ping(host_ip):
     check_bit=False
     remsg = os.system('ping -c 4 ' + host_ip +' > /dev/null' )
     if remsg:
-        # print 'ping bad'
+        print host_ip+'ping bad'
         pass
     else:
         check_bit=True
-        # print 'ping ok'
+        print host_ip+'ping ok'
     return check_bit
 
 
@@ -243,17 +256,19 @@ def check_master(host):
         ssh.ssh_close()
         if int(remsg['stdout'] ) >= 3:
             check_bit=True
-            # print 'master ok'
+            print 'master ok'
         else:
             check_bit=False
             global SEND_MAIB_BIT
             SEND_MAIB_BIT = False
             Error_log.error_save('ERROR:master'+host['host_ip'] + ' 节点数小于3 请及时查看\n' )
+            print '节点数小于3'
     else:
         check_bit=False
         global SEND_MAIB_BIT
         SEND_MAIB_BIT = False
         Error_log.error_save('ERROR:' + host['host_ip'] + 'maser ip 失联 无法ping通\n' )
+        print '无法ping通'
 
     return check_bit
 
@@ -276,16 +291,19 @@ def check_mount(host):
         ssh.ssh_close()
         if int(remsg1['stdout'] ) == 1 and int(remsg2['stdout'] ) == 1 and int(remsg3['stdout'] ) == 1:
             check_bit = True
+            print '挂载ok'
         else:
             check_bit=False
             global SEND_MAIB_BIT
             SEND_MAIB_BIT = False
             Error_log.error_save('ERROR:' + host['host_ip'] + '挂载出错，请及时查看')
+            print '挂载出错'
     else:
         check_bit=False
         global SEND_MAIB_BIT
         SEND_MAIB_BIT = False
         Error_log.error_save('ERROR:' + host['host_ip'] + ' 失联 无法ping通\n' )
+        print host['host_ip'] + ' 失联 无法ping通'
 
     return check_bit
 
@@ -311,12 +329,13 @@ def check_registry(host):
             pass
     if http_bit or https_bit:
         check_bit=True
-        # print "registry is ok "
+        print "registry is ok "
     else:
         check_bit=False
         global SEND_MAIB_BIT
         SEND_MAIB_BIT = False
         Error_log.error_save('ERROR:' + host['host_ip'] + ' registry 仓库无法访问\n' )
+        print 'registry is error'
 
     return check_bit
 
@@ -329,12 +348,12 @@ def check_docker(host):
     '''
     Error_log=Error_Log()
     check_bit=False
-    if check_ping(host=host['host_ip']):
+    if check_ping(host_ip=host['host_ip']):
         ssh=SSH(host=host['host_ip'],user=host['user'],port=host['port'],pwd=host['pwd'])
         remsg=ssh.cmd_run('systemctl status docker | grep running | wc -l')
         print remsg['stdout']
         ssh.ssh_close()
-        if int(remsg['stdout'] ) == 1:
+        if int(remsg['stdout'])== 1:
             check_bit=True
             print 'docker ok'
         else:
@@ -342,11 +361,13 @@ def check_docker(host):
             global SEND_MAIB_BIT
             SEND_MAIB_BIT = False
             Error_log.error_save('ERROR:' + host['host_ip'] + ' docker 运行出错\n' )
+            print 'docker error'
     else:
         check_bit=False
         global SEND_MAIB_BIT
         SEND_MAIB_BIT = False
         Error_log.error_save('ERROR:' + host['host_ip'] + ' 主机失联\n' )
+        print '主机失联'
     return check_bit
         # print 'docker bad'
 
@@ -356,24 +377,26 @@ def check_DNS(host):
     '''
     Error_log=Error_Log()
     check_bit=False
-    if check_ping(host=host['host_ip']):
+    if check_ping(host_ip=host['host_ip']):
         ssh=SSH(host=host['host_ip'],user=host['user'],port=host['port'],pwd=host['pwd'])
         remsg1=ssh.cmd_run("cat /etc/resolv.conf | grep 'search default.svc.syberyun.local svc.syberyun.local syberyun.local' | wc -l")
         remsg2=ssh.cmd_run("cat /etc/resolv.conf | grep 'nameserver 172.16.160.39' | wc -l")
         ssh.ssh_close()
         if int(remsg1['stdout'] ) == 1 and int(remsg2['stdout'] ) == 1:
             check_bit=True
-            # print 'DNS ok'
+            print 'DNS ok'
         else:
             check_bit=False
             global SEND_MAIB_BIT
             SEND_MAIB_BIT = False
             Error_log.error_save('ERROR:' + host['host_ip'] + ' DNS配置 运行出错\n' )
+            print 'DNS配置 bad'
     else:
         check_bit=False
         global SEND_MAIB_BIT
         SEND_MAIB_BIT = False
         Error_log.error_save('ERROR:' + host['host_ip'] + ' 主机失联\n' )
+        print '主机失联'
     return check_bit
 
 def check_Etcd(host):
@@ -382,7 +405,7 @@ def check_Etcd(host):
     '''
     Error_log=Error_Log()
     check_bit=False
-    if check_ping(host=host['host_ip']):
+    if check_ping(host_ip=host['host_ip']):
         ssh=SSH(host=host['host_ip'],user=host['user'],port=host['port'],pwd=host['pwd'])
         remsg=ssh.cmd_run('systemctl status etcd | grep running | wc -l')
         print remsg['stdout']
@@ -395,11 +418,13 @@ def check_Etcd(host):
             global SEND_MAIB_BIT
             SEND_MAIB_BIT = False
             Error_log.error_save('ERROR:' + host['host_ip'] + ' etcd 服务 运行出错\n' )
+            print 'etcd error'
     else:
         check_bit=False
         global SEND_MAIB_BIT
         SEND_MAIB_BIT = False
         Error_log.error_save('ERROR:' + host['host_ip'] + ' 主机失联\n' )
+        print '主机失联'
     return check_bit
 
 
@@ -409,68 +434,150 @@ def check_mysql(host):
     '''
     Error_log=Error_Log()
     check_bit=False
-    if check_ping(host=host['host_ip']):
-        ssh=SSH(host=host['host_ip'],user=host['user'],port=host['port'],pwd=host['pwd'])
-        remsg=ssh.cmd_run('systemctl status mysqld | grep running | wc -l')
-        print remsg['stdout']
-        ssh.ssh_close()
-        if int(remsg['stdout'] ) == 1:
-            check_bit=True
+    server_check_bit=False
+    port_check_bit=False
+    if check_ping(host_ip=host['host_ip']):
+        if check_docker(host=host):
+            server_check_bit=True
             print 'mysql ok'
         else:
-            check_bit=False
+            server_check_bit=False
             global SEND_MAIB_BIT
             SEND_MAIB_BIT = False
-            Error_log.error_save('ERROR:' + host['host_ip'] + ' mysqld 服务运行出错\n' )
+            Error_log.error_save('ERROR:' + host['host_ip'] + ' docker--mysqld 服务运行出错\n' )
+            print ' mysqld 服务运行出错'
+
+        # ssh=SSH(host=host['host_ip'],user=host['user'],port=host['port'],pwd=host['pwd'])
+        # remsg=ssh.cmd_run('systemctl status mysqld | grep running | wc -l')
+        # print remsg['stdout']
+        # ssh.ssh_close()
+        # if int(remsg['stdout'] ) == 1:
+        #     server_check_bit=True
+        #     print 'mysql ok'
+        # else:
+        #     server_check_bit=False
+        #     global SEND_MAIB_BIT
+        #     SEND_MAIB_BIT = False
+        #     Error_log.error_save('ERROR:' + host['host_ip'] + ' mysqld 服务运行出错\n' )
+        #     print ' mysqld 服务运行出错'
     else:
-        check_bit=False
+        server_check_bit=False
         global SEND_MAIB_BIT
         SEND_MAIB_BIT = False
         Error_log.error_save('ERROR:' + host['host_ip'] + ' 主机失联\n' )
-    if check_port(host=host['host_ip'],port=3306):
+        print '主机失联'
+    if check_port(host_ip=host['host_ip'],port=3306):
+        port_check_bit=True
+        print '3306端口连接 ok'
+    else:
+        port_check_bit=False
+        global SEND_MAIB_BIT
+        SEND_MAIB_BIT = False
+        Error_log.error_save('ERROR:' + host['host_ip'] + ' mysqld 3306端口无法连接\n' )
+        print 'mysqld 3306端口无法连接'
+
+    if server_check_bit and port_check_bit:
         check_bit=True
+        print 'msyql ok'
     else:
         check_bit=False
         global SEND_MAIB_BIT
         SEND_MAIB_BIT = False
-        Error_log.error_save('ERROR:' + host['host_ip'] + ' mysqld 3306端口无法连接\n' )
+        Error_log.error_save('ERROR:' + host['host_ip'] + ' mysqld 服务出错\n' )
+        print 'msyql bad'
     return check_bit
 
 def check_webserver(host):
     check_bit=False
     Error_log=Error_Log()
-    if check_port(host['host_ip'],port=8090):
-        check_bit=False
+    if check_port(host_ip=host['host_ip'],port=8090):
+        check_bit=True
+        print 'webserver ok'
     else:
         check_bit=False
         global SEND_MAIB_BIT
         SEND_MAIB_BIT = False
         Error_log.error_save('ERROR:' + host['host_ip'] + 'webserver 8090端口无法连接\n' )
+        print 'webserver 8090端口无法连接'
     return check_bit
 
 def check_gitlab(host):
     check_bit=False
     Error_log=Error_Log()
-    if check_port(host['host_ip'],port=80):
-        check_bit=False
+    if check_port(host_ip=host['host_ip'],port=80):
+        check_bit=True
+        print 'gitlab ok'
     else:
         check_bit=False
         global SEND_MAIB_BIT
         SEND_MAIB_BIT = False
         Error_log.error_save('ERROR:' + host['host_ip'] + 'gitlab 80端口无法连接\n' )
+        print 'gitlab 80端口无法连接'
     return check_bit
 
 def check_jenkins(host):
     check_bit=False
     Error_log=Error_Log()
-    if check_port(host['host_ip'],port=8080):
-        check_bit=False
+    if check_port(host_ip=host['host_ip'],port=8080):
+        check_bit=True
+        print 'jenkins ok'
     else:
         check_bit=False
         global SEND_MAIB_BIT
         SEND_MAIB_BIT = False
         Error_log.error_save('ERROR:' + host['host_ip'] + 'jenkins 8080端口无法连接\n' )
+        print 'jenkins 8080端口无法连接'
     return check_bit
+
+def check_P25(host):
+    '''
+        为满足检测regis仓库的挂载，特别添加的检测函数
+    '''
+    check_bit=False
+    Error_log=Error_Log()
+    curl_check_bit=False
+    mount_check_bit=False
+    # if check_registry(host=host):
+    if check_ping(host_ip=host['host_ip']):
+        ssh=SSH(host=host['host_ip'],user=host['user'],port=host['port'],pwd=host['pwd'])
+        remsg=ssh.cmd_run('df -hl | grep /dev/sdb1 | grep data | wc -l')
+        ssh.ssh_close()
+        if int(remsg['stdout'] ) == 1:
+            mount_check_bit = True
+            print '25 挂载ok'
+        else:
+            mount_check_bit=False
+            global SEND_MAIB_BIT
+            SEND_MAIB_BIT = False
+            Error_log.error_save('ERROR:' + host['host_ip'] + '挂载出错，请及时查看')
+            print '25 挂载出错'
+    else:
+        check_bit=False
+        global SEND_MAIB_BIT
+        SEND_MAIB_BIT = False
+        Error_log.error_save('ERROR:' + host['host_ip'] + ' 失联 无法ping通\n' )
+        print '失联 无法ping通'
+    if check_registry(host=host):
+        curl_check_bit=True
+    else:
+        curl_check_bit=False
+        global SEND_MAIB_BIT
+        SEND_MAIB_BIT = False
+        Error_log.error_save('ERROR:' + host['host_ip'] + ' registry curl 检测异常\n' )
+        print 'registry curl 检测异常'
+    if curl_check_bit and mount_check_bit:
+        check_bit=True
+        print 'registry 检测为正常'
+    else:
+        check_bit=False
+        global SEND_MAIB_BIT
+        SEND_MAIB_BIT = False
+        Error_log.error_save('ERROR:' + host['host_ip'] + ' registry 检测异常\n' )
+        print 'registry curl 检测异常'
+
+
+    return check_bit
+
 
 
 #主函数
@@ -478,11 +585,29 @@ def check_all(host):
     '''
         主函数，配置具体检测项
     '''
+    # try:
     log=Error_Log()
     log.mk_log_file()
-    # check_master(host=host['test'])
-    # check_mount(host=host['test'])
-    check_registry(host=host['test'])
+    check_master(host=host['master']['p1'])
+    check_mount(host=host['node']['p180'])
+    check_P25(host=host['registry']['p25'])
+    check_docker(host=host['node']['p180'])
+    check_docker(host=host['node']['p181'])
+    check_docker(host=host['node']['p182'])
+    check_Etcd(host=host['etcds']['p22'])
+    check_Etcd(host=host['etcds']['p23'])
+    check_Etcd(host=host['etcds']['p24'])
+    check_mysql(host=host['yxy_mysql']['p4'])
+    check_webserver(host=host['yxy_webserver']['p5'])
+    check_gitlab(host=host['gitlab']['p8'])
+    check_jenkins(host=host['jenkins']['p9'])
+    Send_mail()
+    # except Exception,e:
+    #     print e
+    #     global SEND_MAIB_BIT
+    #     SEND_MAIB_BIT = False
+    #     log.error_save('程序异常退出，请检测脚本运行状况')
+    #     Send_mail()
 
 
 
