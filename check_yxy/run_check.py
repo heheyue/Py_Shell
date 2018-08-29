@@ -103,7 +103,7 @@ host={
 }
 
 mail_to_user=[
-    'yanxinyue@syberos.com',
+    'team_cloud_service@syberos.com',
 ]
 
 #--------------------------------------------------------------------------------------
@@ -188,17 +188,22 @@ class Error_Log(object):
         os.system('echo "' + msg + '" >> CheckErrorSave.file')
 
 #公共函数
-def Send_mail():
+def Send_mail(users):
     '''
         发送邮件
     '''
     global SEND_MAIB_BIT
     print SEND_MAIB_BIT
     if SEND_MAIB_BIT:
-        print '没有发送邮件'
+        for i in users:
+            # print 'echo `date`  '
+            os.system('echo `date` > sandrundata.file')
+            os.system('echo "检测服务全部正常" >> sandrundata.file')
+            os.system('mail -s "云服务检测正常`date`" '+i+' < ./sandrundata.file')
     else:
-        print '发送邮件'
-        # os.system('mail -s "云服务出错`date`" yanxinyue@syberos.com < ./CheckErrorSave.file')
+        for i in users:
+            print 'mail -s "云服务出错`date`" '+i+' < ./CheckErrorSave.file'
+            os.system('mail -s "云服务出错`date`" '+i+' < ./CheckErrorSave.file')
 
 def log_save():
     '''
@@ -585,29 +590,29 @@ def check_all(host):
     '''
         主函数，配置具体检测项
     '''
-    # try:
-    log=Error_Log()
-    log.mk_log_file()
-    check_master(host=host['master']['p1'])
-    check_mount(host=host['node']['p180'])
-    check_P25(host=host['registry']['p25'])
-    check_docker(host=host['node']['p180'])
-    check_docker(host=host['node']['p181'])
-    check_docker(host=host['node']['p182'])
-    check_Etcd(host=host['etcds']['p22'])
-    check_Etcd(host=host['etcds']['p23'])
-    check_Etcd(host=host['etcds']['p24'])
-    check_mysql(host=host['yxy_mysql']['p4'])
-    check_webserver(host=host['yxy_webserver']['p5'])
-    check_gitlab(host=host['gitlab']['p8'])
-    check_jenkins(host=host['jenkins']['p9'])
-    Send_mail()
-    # except Exception,e:
-    #     print e
-    #     global SEND_MAIB_BIT
-    #     SEND_MAIB_BIT = False
-    #     log.error_save('程序异常退出，请检测脚本运行状况')
-    #     Send_mail()
+    try:
+        log=Error_Log()
+        log.mk_log_file()
+        check_master(host=host['master']['p1'])
+        check_mount(host=host['node']['p180'])
+        check_P25(host=host['registry']['p25'])
+        check_docker(host=host['node']['p180'])
+        check_docker(host=host['node']['p181'])
+        check_docker(host=host['node']['p182'])
+        check_Etcd(host=host['etcds']['p22'])
+        check_Etcd(host=host['etcds']['p23'])
+        check_Etcd(host=host['etcds']['p24'])
+        check_mysql(host=host['yxy_mysql']['p4'])
+        check_webserver(host=host['yxy_webserver']['p5'])
+        check_gitlab(host=host['gitlab']['p8'])
+        check_jenkins(host=host['jenkins']['p9'])
+        Send_mail(users=mail_to_user)
+    except Exception,e:
+        print e
+        global SEND_MAIB_BIT
+        SEND_MAIB_BIT = False
+        log.error_save('程序异常退出，请检测脚本运行状况')
+        Send_mail(users=mail_to_user)
 
 
 
